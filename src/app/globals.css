@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-plex), ui-sans-serif, system-ui, sans-serif;
+  --color-bg: #05211a;
+  --color-panel: #0b3328;
+  --color-line: #14503f;
+  --color-ink: #f2f7f4;
+  --color-mute: #8fb3a4;
+  --color-wa: #25d366;
+  --color-wa-deep: #128c7e;
+  --color-warn: #c58a2b;
+}
+html { color-scheme: dark; }
+body {
+  background: var(--color-bg); color: var(--color-ink);
+  background-image:
+    radial-gradient(900px 500px at 85% -10%, rgba(37,211,102,.14), transparent 60%),
+    linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+  background-size: auto, 40px 40px, 40px 40px;
+  background-attachment: fixed;
+}

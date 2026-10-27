@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": { "@/*": ["./src/*"] },
+    "jsx": "preserve",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "target": "es2022"
+  },
+  "include": ["src", "tests", "prisma"],
+  "exclude": ["node_modules"]
+}

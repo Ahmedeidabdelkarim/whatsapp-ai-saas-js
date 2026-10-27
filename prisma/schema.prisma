@@ -1,0 +1,353 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  STAFF
+  SUPER_ADMIN
+}
+
+enum SubStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum ConvStatus {
+  ACTIVE       // AI is handling the chat
+  HANDOFF      // waiting for a human
+  STAFF_ACTIVE // a human is connected
+  CLOSED
+}
+
+// Where the customer is in the buying journey (shown in the dashboard / CRM)
+enum Stage {
+  INQUIRY
+  INTERESTED
+  IN_CART
+  CHECKOUT
+  ABANDONED
+  COMPLETED
+  HUMAN
+}
+
+enum Direction {
+  IN
+  OUT
+}
+
+enum MsgType {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+  INTERACTIVE
+  SYSTEM
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FULFILLED
+  CANCELED
+}
+
+enum AssetKind {
+  IMAGE
+  VIDEO
+  VOICE
+  GUIDE
+}
+
+model Store {
+  id                String   @id @default(cuid())
+  name              String
+  slug              String   @unique
+  currency          String   @default("SAR")
+  // WhatsApp Cloud API connection
+  waPhoneNumberId   String?  @unique
+  waBusinessId      String?
+  waAccessToken     String?  // stored encrypted (enc:v1:...)
+  // Merchant's own Moyasar secret key: customer order payments go to the merchant, not the platform
+  moyasarSecretKey  String?  // stored encrypted
+  // AI persona + greeting (dashboard: "شخصية البوت")
+  aiPersona         String   @default("تكلّم بلهجة سعودية ودودة، ورشّح المنتجات من الكتالوج فقط. لا تذكر أي سعر أو منتج غير موجود.")
+  greeting          String   @default("وعليكم السلام! أهلاً بك في متجرنا، هذي جولة سريعة تعرّفك علينا")
+  aiEnabled         Boolean  @default(true)
+  lastAiError       String?  // last AI failure, shown in the dashboard so nobody has to dig through the terminal
+  lastAiErrorAt     DateTime?
+  createdAt         DateTime @default(now())
+  users             User[]
+  categories        Category[]
+  brands            Brand[]
+  products          Product[]
+  customers         Customer[]
+  conversations     Conversation[]
+  orders            Order[]
+  welcomeAssets     WelcomeAsset[]
+  subscription      Subscription?
+}
+
+model User {
+  id           String  @id @default(cuid())
+  email        String  @unique
+  name         String
+  passwordHash String
+  role         Role    @default(OWNER)
+  storeId      String?
+  store        Store?  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  resetOtps    PasswordResetOtp[]
+}
+
+model Plan {
+  id            String @id @default(cuid())
+  key           String @unique // trial | starter | growth | pro
+  name          String
+  priceHalalas  Int
+  maxProducts   Int
+  maxConversationsPerMonth Int
+  aiSessionTokens Int     @default(4000) // AI output budget per conversation session
+  voiceSupport    Boolean @default(false) // understands customer voice notes
+  crmFull         Boolean @default(false) // customer profiles + timeline
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id        String    @id @default(cuid())
+  storeId   String    @unique
+  store     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  planId    String
+  plan      Plan      @relation(fields: [planId], references: [id])
+  status    SubStatus @default(TRIALING)
+  currentPeriodEnd DateTime
+  payments  Payment[]
+}
+
+model Payment {
+  id             String   @id @default(cuid())
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  amountHalalas  Int
+  planId         String?  // plan being bought; applied when the invoice is paid
+  gatewayRef     String   @unique // Moyasar invoice id
+  status         String   @default("pending") // pending | paid | failed
+  createdAt      DateTime @default(now())
+}
+
+model Category {
+  id       String  @id @default(cuid())
+  storeId  String
+  store    Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name     String
+  parentId String?
+  parent   Category?  @relation("Tree", fields: [parentId], references: [id])
+  children Category[] @relation("Tree")
+  products Product[]
+  @@index([storeId])
+}
+
+model Brand {
+  id       String @id @default(cuid())
+  storeId  String
+  store    Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name     String
+  products Product[]
+  @@index([storeId])
+}
+
+model Product {
+  id           String  @id @default(cuid())
+  storeId      String
+  store        Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  priceHalalas Int
+  stock        Int     @default(0)
+  imageUrl     String?
+  active       Boolean @default(true)
+  categoryId   String?
+  category     Category? @relation(fields: [categoryId], references: [id])
+  brandId      String?
+  brand        Brand?  @relation(fields: [brandId], references: [id])
+  cartItems    CartItem[]
+  orderItems   OrderItem[]
+  inquiries    ProductInquiry[]
+  createdAt    DateTime @default(now())
+  @@index([storeId, active])
+}
+
+model Customer {
+  id            String @id @default(cuid())
+  storeId       String
+  store         Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  waId          String // customer phone (WhatsApp id)
+  name          String?
+  createdAt     DateTime @default(now())
+  conversations Conversation[]
+  orders        Order[]
+  events        CustomerEvent[]
+  @@unique([storeId, waId])
+}
+
+model Conversation {
+  id            String     @id @default(cuid())
+  storeId       String
+  store         Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customerId    String
+  customer      Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  status        ConvStatus @default(ACTIVE)
+  welcomed      Boolean    @default(false)
+  stage         Stage      @default(INQUIRY)
+  awaiting      String?    // what the bot is waiting for next, e.g. ADDRESS during checkout
+  aiTokens      Int        @default(0)
+  followUpSent  Boolean    @default(false)
+  lastMessageAt DateTime   @default(now())
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @default(now()) @updatedAt // bumped on any change: the realtime safety net watches it
+  messages      Message[]
+  cart          Cart?
+  inquiries     ProductInquiry[]
+  events        CustomerEvent[]
+  @@index([storeId, lastMessageAt])
+  @@index([storeId, updatedAt])
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  direction      Direction
+  type           MsgType  @default(TEXT)
+  body           String
+  sender         String?  // CUSTOMER | BOT | STAFF
+  waMessageId    String?  @unique
+  createdAt      DateTime @default(now())
+  @@index([conversationId, createdAt])
+}
+
+model ProductInquiry {
+  id             String @id @default(cuid())
+  productId      String
+  product        Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  @@index([productId, createdAt])
+}
+
+model Cart {
+  id             String @id @default(cuid())
+  conversationId String @unique
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  items          CartItem[]
+  updatedAt      DateTime @updatedAt
+}
+
+model CartItem {
+  id        String @id @default(cuid())
+  cartId    String
+  cart      Cart   @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int    @default(1)
+  @@unique([cartId, productId])
+}
+
+model Order {
+  id           String      @id @default(cuid())
+  storeId      String
+  store        Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customerId   String
+  customer     Customer    @relation(fields: [customerId], references: [id])
+  status       OrderStatus @default(PENDING)
+  totalHalalas Int
+  address      String?
+  conversationId String?
+  paymentRef   String?     @unique // Moyasar invoice id
+  paymentUrl   String?
+  paidAt       DateTime?
+  items        OrderItem[]
+  createdAt    DateTime    @default(now())
+  @@index([storeId, createdAt])
+}
+
+model OrderItem {
+  id                 String @id @default(cuid())
+  orderId            String
+  order              Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId          String
+  product            Product @relation(fields: [productId], references: [id])
+  quantity           Int
+  unitPriceHalalas   Int
+}
+
+// Welcome package: intro video, voice note, buying guide (PDF)
+model WelcomeAsset {
+  id       String    @id @default(cuid())
+  storeId  String
+  store    Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  kind     AssetKind
+  url      String
+  enabled  Boolean   @default(true)
+  @@unique([storeId, kind])
+}
+
+// Forgot-password by emailed one-time code. One active row per user.
+// Step 1: a 6-digit code is emailed (only an HMAC of it is stored). Step 2: the right code (max 5 tries, 10 min)
+// turns into a short-lived reset session (only the hash of its cookie token is stored). Step 3: the new password is saved.
+model PasswordResetOtp {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash       String
+  attempts       Int       @default(0)
+  expiresAt      DateTime
+  verifiedAt     DateTime?
+  resetTokenHash String?   @unique
+  resetExpiresAt DateTime?
+  createdAt      DateTime  @default(now())
+  @@index([userId, createdAt])
+}
+
+// DB-backed job queue (webhook events). Claimed with FOR UPDATE SKIP LOCKED, see server/jobs/queue.ts
+model Job {
+  id        String    @id @default(cuid())
+  type      String
+  payload   Json
+  status    String    @default("PENDING") // PENDING | PROCESSING | DONE | FAILED
+  attempts  Int       @default(0)
+  runAt     DateTime  @default(now())
+  lockedAt  DateTime?
+  lastError String?
+  storeId   String?
+  groupKey  String?   // jobs with the same key run one at a time, in order (one customer chat)
+  dedupeKey String?   @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  @@index([status, runAt])
+  @@index([storeId, status])
+}
+
+// Every step a customer takes. Drives stages, KPIs, the customer timeline and "most requested" products.
+model CustomerEvent {
+  id             String   @id @default(cuid())
+  storeId        String
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  customerId     String
+  customer       Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  type           String   // INTEREST | ADD_TO_CART | CHECKOUT | ABANDONED | COMPLETED | HUMAN_REQUEST
+  productId      String?
+  createdAt      DateTime @default(now())
+  @@index([storeId, type, createdAt])
+  @@index([customerId, createdAt])
+}
