@@ -56,7 +56,7 @@ export const showProductCardTool = {
         await logMessage(ctx.conversationId, "OUT", `[بطاقة منتج] ${p.name} — ${sar(p.priceHalalas)}`, "IMAGE");
         await recordEvent({ conversationId: ctx.conversationId, type: "INTEREST", productId: p.id });
         if (p.stock > 0) {
-            const question = "كم قطعة تحتاج؟ اكتب العدد بالأرقام.";
+            const question = "كم قطعة تحتاج؟ اكتب العدد بالأرقام العربية أو الإنجليزية، مثل ٢ أو 2.";
             await prisma.conversation.update({ where: { id: ctx.conversationId }, data: { awaiting: `QUANTITY:${p.id}` } });
             await sendText(ctx.creds, ctx.customerWaId, question);
             await logMessage(ctx.conversationId, "OUT", question);

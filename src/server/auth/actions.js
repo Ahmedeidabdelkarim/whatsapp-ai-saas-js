@@ -24,6 +24,11 @@ export async function loginAction(_, fd) {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user || !(await verifyPassword(p.data.password, user.passwordHash)))
         return { error: "البريد أو كلمة المرور خاطئة" };
+    if (user.role !== "SUPER_ADMIN") {
+        const store = user.storeId && await prisma.store.findUnique({ where: { id: user.storeId }, select: { isActive: true } });
+        if (!store?.isActive)
+            return { error: "هذا المتجر موقوف حاليًا. تواصل مع إدارة المنصة." };
+    }
     await createSession({ userId: user.id, role: user.role, storeId: user.storeId });
     redirect(user.role === "SUPER_ADMIN" ? "/admin" : "/dashboard");
 }

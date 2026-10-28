@@ -6,8 +6,8 @@ export async function getStore() {
     const s = await requireUser();
     if (!s.storeId)
         redirect("/admin");
-    const store = await prisma.store.findUnique({ where: { id: s.storeId } });
+    const store = await prisma.store.findFirst({ where: { id: s.storeId, isActive: true } });
     if (!store)
-        redirect("/login");
+        redirect("/login?storeDisabled=1");
     return store;
 }

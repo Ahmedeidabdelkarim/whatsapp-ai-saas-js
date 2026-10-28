@@ -13,15 +13,38 @@ import { getDiagnostics } from "@/server/diagnostics";
 import { prisma } from "@/lib/db/prisma";
 import { saveWhatsappAction } from "@/server/settings-actions";
 export default async function Page() {
-    const store = await getStore();
-    const creds = getWaCreds(store);
-    const [assetRows, diag, tplStatus] = await Promise.all([
-        prisma.welcomeAsset.findMany({ where: { storeId: store.id } }),
-        getDiagnostics(store),
-        creds && store.waBusinessId ? getTemplateStatus(store.waBusinessId, creds.accessToken) : Promise.resolve(null),
-    ]);
-    const assets = Object.fromEntries(assetRows.map((a) => [a.kind, a.url]));
+    let store;
+    let assets = {};
+    let diag = { checks: [], failed: [] };
+    let tplStatus = null;
+    let dbError = null;
+    try {
+        store = await getStore();
+        const creds = getWaCreds(store);
+        const [assetRows, d, status] = await Promise.all([
+            prisma.welcomeAsset.findMany({ where: { storeId: store.id } }),
+            getDiagnostics(store),
+            creds && store.waBusinessId ? getTemplateStatus(store.waBusinessId, creds.accessToken) : Promise.resolve(null),
+        ]);
+        assets = Object.fromEntries(assetRows.map((a) => [a.kind, a.url]));
+        diag = d;
+        tplStatus = status;
+    }
+    catch (e) {
+        dbError = e instanceof Error ? e.message : String(e);
+        console.error("[dashboard/whatsapp] failed to load WhatsApp page:", dbError);
+    }
+    const creds = store ? getWaCreds(store) : null;
     const webhook = `${process.env.APP_URL}/api/webhooks/whatsapp`;
+    if (!store) {
+        return (<>
+          <PageHeader eyebrow="تجربة العميل على واتساب" title="واتساب وباقة الترحيب"/>
+          <Card title="حالة قاعدة البيانات">
+            <p className="text-sm text-red-300">تعذّر تحميل صفحة واتساب حالياً لأن قاعدة البيانات غير متاحة.</p>
+            <p className="mt-2 text-xs text-mute" dir="ltr">{dbError ?? "يرجى التحقق من اتصال Neon/Postgres."}</p>
+          </Card>
+        </>);
+    }
     return (<>
       <PageHeader eyebrow="تجربة العميل على واتساب" title="واتساب وباقة الترحيب"/>
       <div className="grid gap-4 lg:grid-cols-2">

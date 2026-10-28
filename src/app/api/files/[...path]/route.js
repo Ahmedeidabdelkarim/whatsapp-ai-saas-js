@@ -3,6 +3,7 @@ import path from "path";
 import { NextResponse } from "next/server";
 import { uploadDir } from "@/lib/storage";
 import { EXT_MIME } from "@/lib/storage/validate";
+import { isStoreActive } from "@/lib/tenant/store-status";
 /** Public on purpose: WhatsApp's servers fetch these files. Names are random UUIDs; only files we wrote are served. */
 export async function GET(_, { params }) {
     const { path: parts } = await params;
@@ -10,6 +11,8 @@ export async function GET(_, { params }) {
         return new NextResponse("Not found", { status: 404 });
     const mime = EXT_MIME[parts[1].split(".").pop()];
     if (!mime)
+        return new NextResponse("Not found", { status: 404 });
+    if (!(await isStoreActive(parts[0])))
         return new NextResponse("Not found", { status: 404 });
     try {
         const buf = await fs.readFile(path.join(uploadDir(), parts[0], parts[1]));

@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
 import { sar } from "@/lib/utils/format";
-import { addToCart, getCart } from "@/server/carts";
+import { addToCart, getCart, removeCartQuantity, removeFromCart } from "@/server/carts";
 import { createOrderWithInvoice, sendPaymentLink } from "@/server/orders/checkout-flow";
 import { formatCart } from "@/lib/utils/cart-text";
 import { looksLikeAddress, wantsCancel } from "@/lib/utils/intent";
@@ -9,9 +9,10 @@ import { recordEvent } from "@/server/events";
 import { sendButtons, sendList, sendText } from "./messages";
 import { ids } from "./actions";
 import { pickKeywordMatch } from "./keywords";
-import { parseQuantity } from "@/lib/utils/quantity";
+import { isRemoveAll, parseQuantity } from "@/lib/utils/quantity";
 const PAGE = 8; // 8 rows + "more" + "talk to agent" = WhatsApp's 10-row limit
 const HUMAN_SECTION = { title: "مساعدة", rows: [{ id: ids.human, title: "التحدث مع موظف" }] };
+const CART_SECTION = { title: "سلتك", rows: [{ id: ids.cart, title: "عرض السلة" }] };
 const log = (c, body) => logMessage(c.conversationId, "OUT", body, "INTERACTIVE");
 const say = async (c, text) => { await sendText(c.creds, c.to, text); await logMessage(c.conversationId, "OUT", text); };
 const stockWord = (n) => (n > 0 ? "متوفر" : "غير متوفر");
@@ -19,11 +20,11 @@ const stockWord = (n) => (n > 0 ? "متوفر" : "غير متوفر");
 export async function sendMainMenu(c, intro = "وش تبحث عنه اليوم؟ اختر من القائمة") {
     const cats = await prisma.category.findMany({ where: { storeId: c.storeId, parentId: null }, orderBy: { name: "asc" }, take: 8 });
     if (!cats.length) {
-        await sendButtons(c.creds, c.to, { body: intro, buttons: [{ id: ids.human, title: "التحدث مع موظف" }] });
+        await sendButtons(c.creds, c.to, { body: intro, buttons: [{ id: ids.cart, title: "عرض السلة" }, { id: ids.human, title: "التحدث مع موظف" }] });
         await log(c, intro);
         return;
     }
-    await sendList(c.creds, c.to, { body: intro, button: "تصفّح الأقسام", sections: [{ title: "الأقسام", rows: cats.map((x) => ({ id: ids.cat(x.id), title: x.name })) }, HUMAN_SECTION] });
+    await sendList(c.creds, c.to, { body: intro, button: "تصفّح الأقسام", sections: [{ title: "الأقسام", rows: cats.map((x) => ({ id: ids.cat(x.id), title: x.name })) }, CART_SECTION, HUMAN_SECTION] });
     await log(c, "[قائمة الأقسام]");
 }
 /** Section -> sub-sections -> brands -> products. */
@@ -69,8 +70,8 @@ async function showProduct(c, productId) {
     }
     await prisma.productInquiry.create({ data: { productId: p.id, conversationId: c.conversationId } });
     await recordEvent({ conversationId: c.conversationId, type: "INTEREST", productId: p.id });
-    const body = `*${p.name}*\n${sar(p.priceHalalas)} · ${stockWord(p.stock)}${p.description ? `\n${p.description.slice(0, 300)}` : ""}${p.stock > 0 ? "\n\nكم قطعة تحتاج؟ اكتب العدد بالأرقام." : ""}`;
-    const buttons = [...(p.stock > 0 ? [{ id: ids.menu, title: "متابعة التسوق" }] : []), { id: ids.human, title: "التحدث مع موظف" }];
+    const body = `*${p.name}*\n${sar(p.priceHalalas)} · ${stockWord(p.stock)}${p.description ? `\n${p.description.slice(0, 300)}` : ""}${p.stock > 0 ? "\n\nكم قطعة تحتاج؟ اكتب العدد بالأرقام العربية أو الإنجليزية، مثل ٢ أو 2." : ""}`;
+    const buttons = [...(p.stock > 0 ? [{ id: ids.cart, title: "عرض السلة" }, { id: ids.menu, title: "متابعة التسوق" }] : []), { id: ids.human, title: "التحدث مع موظف" }];
     if (p.stock > 0)
         await prisma.conversation.update({ where: { id: c.conversationId }, data: { awaiting: `QUANTITY:${p.id}` } });
     await sendButtons(c.creds, c.to, { body, buttons, headerImage: p.imageUrl });
@@ -93,7 +94,30 @@ export async function handleAction(c, a) {
             return { handled: true };
         case "add":
             await prisma.conversation.update({ where: { id: c.conversationId }, data: { awaiting: `QUANTITY:${a.id}` } });
-            await say(c, "كم قطعة تحتاج؟ اكتب العدد بالأرقام.");
+            await say(c, "كم قطعة تحتاج؟ اكتب العدد بالأرقام العربية أو الإنجليزية، مثل ٢ أو 2.");
+            return { handled: true };
+        case "cart":
+            await showCart(c);
+            return { handled: true };
+        case "cart_remove":
+            await showCartRemoveMenu(c);
+            return { handled: true };
+        case "cart_more":
+            await showCartRemoveMenu(c, a.offset);
+            return { handled: true };
+        case "cart_delete":
+            await prisma.conversation.update({ where: { id: c.conversationId }, data: { awaiting: `CART_REMOVE:${a.id}` } });
+            await askCartRemovalQuantity(c, a.id);
+            return { handled: true };
+        case "cart_delete_all":
+            await removeFromCart(c.conversationId, a.id);
+            await say(c, "تم حذف المنتج بالكامل من سلتك.");
+            await showCart(c);
+            return { handled: true };
+        case "cart_cancel_remove":
+            await clearAwaiting(c);
+            await say(c, "تم إلغاء حذف المنتج، وسلتك كما هي.");
+            await showCart(c);
             return { handled: true };
         case "checkout":
             await startCheckout(c);
@@ -117,6 +141,67 @@ export async function tryKeywordNav(c, text) {
     return true;
 }
 const clearAwaiting = (c) => prisma.conversation.update({ where: { id: c.conversationId }, data: { awaiting: null } });
+async function askCartRemovalQuantity(c, productId) {
+    const cart = await getCart(c.conversationId);
+    const item = cart?.items.find((entry) => entry.productId === productId);
+    if (!item) {
+        await clearAwaiting(c);
+        await say(c, "هذا المنتج لم يعد موجوداً في السلة.");
+        return showCart(c);
+    }
+    const body = `في سلتك ${item.quantity} من ${item.product.name}. كم قطعة تريد حذفها؟ اكتب العدد، أو اختر حذف المنتج بالكامل.`;
+    await sendButtons(c.creds, c.to, { body, buttons: [
+        { id: ids.removeCartItemAll(productId), title: "حذف المنتج بالكامل" },
+        { id: ids.cancelCartRemoval, title: "إلغاء" },
+    ] });
+    await log(c, body);
+}
+/** Show current cart contents and let the customer remove items, check out, or continue shopping. */
+async function showCart(c) {
+    const cart = await getCart(c.conversationId);
+    if (!cart?.items.length) {
+        await say(c, "سلتك فاضية حالياً 🛒");
+        return sendMainMenu(c);
+    }
+    const { text, total } = formatCart(cart.items.map((item) => ({
+        name: item.product.name,
+        quantity: item.quantity,
+        unitHalalas: item.product.priceHalalas,
+    })));
+    await say(c, `🛒 محتويات سلتك:\n${text}\n\nالإجمالي: ${sar(total)}`);
+    const prompt = "تقدر تحذف منتج، تكمل الطلب، أو تتابع التسوق.";
+    await sendButtons(c.creds, c.to, { body: prompt, buttons: [
+        { id: ids.cartRemove, title: "حذف منتج" },
+        { id: ids.checkout, title: "إتمام الطلب" },
+        { id: ids.menu, title: "متابعة التسوق" },
+    ] });
+    await log(c, prompt);
+}
+/** WhatsApp allows at most 10 list rows, so large carts are paginated. */
+async function showCartRemoveMenu(c, offset = 0) {
+    const cart = await getCart(c.conversationId);
+    if (!cart?.items.length) {
+        await say(c, "سلتك فاضية، ما فيه منتجات لحذفها.");
+        return sendMainMenu(c);
+    }
+    const pageSize = 9;
+    const items = cart.items.slice(offset, offset + pageSize);
+    if (!items.length)
+        return showCart(c);
+    const rows = items.map((item) => ({
+        id: ids.removeCartItem(item.productId),
+        title: `حذف ${item.product.name}`,
+        description: `الكمية في السلة: ${item.quantity}`,
+    }));
+    if (offset + pageSize < cart.items.length)
+        rows.push({ id: ids.moreCartItems(offset + pageSize), title: "عرض المزيد" });
+    await sendList(c.creds, c.to, {
+        body: "اختر المنتج الذي تريد حذفه من سلتك",
+        button: "حذف منتج",
+        sections: [{ title: "منتجات السلة", rows }],
+    });
+    await log(c, "[قائمة حذف منتجات السلة]");
+}
 /** Checkout button (or "ابغى أكمل الطلب"): show the cart + total, ask for the address. No AI involved. */
 export async function startCheckout(c) {
     const cart = await getCart(c.conversationId);
@@ -133,6 +218,38 @@ export async function startCheckout(c) {
 }
 /** The bot asked for an address: the next plain message is the answer. Returns true when it consumed the message. */
 export async function handleAwaiting(c, text) {
+    if (c.awaiting?.startsWith("CART_REMOVE:")) {
+        const productId = c.awaiting.slice("CART_REMOVE:".length);
+        if (wantsCancel(text)) {
+            await clearAwaiting(c);
+            await say(c, "تم إلغاء حذف المنتج، وسلتك كما هي.");
+            await showCart(c);
+            return true;
+        }
+        if (isRemoveAll(text)) {
+            await removeFromCart(c.conversationId, productId);
+            await clearAwaiting(c);
+            await say(c, "تم حذف المنتج بالكامل من سلتك.");
+            await showCart(c);
+            return true;
+        }
+        const quantity = parseQuantity(text);
+        if (!quantity) {
+            await say(c, "اكتب عدد القطع التي تريد حذفها بالأرقام، أو اختر «حذف المنتج بالكامل».");
+            return true;
+        }
+        const result = await removeCartQuantity(c.conversationId, productId, quantity);
+        if (!result.ok) {
+            await say(c, result.error);
+            await askCartRemovalQuantity(c, productId);
+            return true;
+        }
+        await clearAwaiting(c);
+        const remaining = result.remaining > 0 ? `باقي ${result.remaining} من ${result.name} في سلتك.` : `تم حذف ${result.name} بالكامل من سلتك.`;
+        await say(c, `تم حذف ${result.removed} من ${result.name}. ${remaining}`);
+        await showCart(c);
+        return true;
+    }
     if (c.awaiting?.startsWith("QUANTITY:")) {
         if (wantsCancel(text)) {
             await clearAwaiting(c);
@@ -142,18 +259,27 @@ export async function handleAwaiting(c, text) {
         }
         const quantity = parseQuantity(text);
         if (!quantity) {
-            await say(c, "اكتب عدد القطع بالأرقام، مثلاً: 2");
+            await say(c, "اكتب عدد القطع بالأرقام العربية أو الإنجليزية، مثلاً: ٢ أو 2.");
             return true;
         }
         const productId = c.awaiting.slice("QUANTITY:".length);
         const result = await addToCart(c.storeId, c.conversationId, productId, quantity);
         if (!result.ok) {
-            await say(c, `${result.error}، اكتب العدد المناسب بالأرقام.`);
+            await say(c, result.error);
+            if (result.maxAdditional !== undefined) {
+                const prompt = `اكتب كمية جديدة لا تتجاوز ${result.maxAdditional}، أو راجع سلتك.`;
+                await sendButtons(c.creds, c.to, { body: prompt, buttons: [
+                    { id: ids.cart, title: "عرض السلة" },
+                    { id: ids.menu, title: "متابعة التسوق" },
+                    { id: ids.human, title: "التحدث مع موظف" },
+                ] });
+                await log(c, prompt);
+            }
             return true;
         }
         await clearAwaiting(c);
         const body = `تمت إضافة ${result.name} للسلة ✅ (الكمية: ${result.quantity})`;
-        await sendButtons(c.creds, c.to, { body, buttons: [{ id: ids.checkout, title: "إتمام الطلب" }, { id: ids.menu, title: "متابعة التسوق" }, { id: ids.human, title: "التحدث مع موظف" }] });
+        await sendButtons(c.creds, c.to, { body, buttons: [{ id: ids.checkout, title: "إتمام الطلب" }, { id: ids.cart, title: "عرض السلة" }, { id: ids.human, title: "التحدث مع موظف" }] });
         await log(c, body);
         return true;
     }
@@ -174,10 +300,7 @@ export async function handleAwaiting(c, text) {
         await sendMainMenu(c);
         return true;
     }
-    await say(c, `تم إنشاء طلبك #${r.label} ✅\nالإجمالي: ${sar(r.totalHalalas)}\nالعنوان: ${text}`);
-    if (r.paymentUrl)
-        await sendPaymentLink(c, r.label, r.totalHalalas, r.paymentUrl);
-    else
-        await say(c, "فريق المتجر بيتواصل معك لإتمام الدفع 🙏");
+    await say(c, `تم إنشاء طلبك #${r.label} ✅\nالعنوان: ${text}`);
+    await sendPaymentLink(c, r.label, r.totalHalalas, r.paymentUrl, r.items);
     return true;
 }

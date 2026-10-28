@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
 import { getSession } from "@/lib/auth/auth";
+import { isStoreActive } from "@/lib/tenant/store-status";
 import { subscribe } from "@/lib/realtime/bus";
 import { SSE_PING, sseData } from "@/lib/realtime/sse";
 export const dynamic = "force-dynamic";
@@ -15,6 +16,8 @@ export async function GET(req) {
     if (!s?.storeId)
         return new Response("unauthorized", { status: 401 });
     const storeId = s.storeId;
+    if (!(await isStoreActive(storeId)))
+        return new Response("store_disabled", { status: 403 });
     const enc = new TextEncoder();
     const signature = async () => {
         const c = await prisma.conversation.findFirst({ where: { storeId }, orderBy: { updatedAt: "desc" }, select: { id: true, updatedAt: true } });

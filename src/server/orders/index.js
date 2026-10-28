@@ -16,6 +16,7 @@ export async function checkoutCart(storeId, conversationId, customerId, address)
         const order = await tx.order.create({
             data: { storeId, customerId, conversationId, totalHalalas: total, address,
                 items: { create: cart.items.map((i) => ({ productId: i.productId, quantity: i.quantity, unitPriceHalalas: i.product.priceHalalas })) } },
+            include: { items: { include: { product: true } } },
         });
         await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
         return order;

@@ -23,6 +23,7 @@ export async function createOrderWithInvoice(storeId, conversationId, customerId
     await prisma.conversation.update({ where: { id: conversationId }, data: { awaiting: null } });
     return {
         ok: true, orderId: order.id, label, totalHalalas: order.totalHalalas,
+        items: order.items,
         paymentUrl: payment.ok ? payment.paymentUrl : null,
         paymentError: payment.ok ? null : payment.error,
     };
@@ -55,7 +56,8 @@ export async function createPaymentLinkForOrder(storeId, orderId) {
 }
 export async function sendPaymentLink(c, label, totalHalalas, url, items) {
     const summary = items?.length ? `\nالمنتجات:\n${items.map((item) => `• ${item.product.name} × ${item.quantity} — ${sar(item.quantity * item.unitPriceHalalas)}`).join("\n")}` : "";
-    const msg = `تفاصيل طلبك #${label}:${summary}\nالإجمالي: ${sar(totalHalalas)}\nرابط الدفع:\n${url}`;
+    const payment = url ? `رابط الدفع:\n${url}` : "فريق المتجر بيتواصل معك لإتمام الدفع.";
+    const msg = `تفاصيل طلبك #${label}:${summary}\nالإجمالي: ${sar(totalHalalas)}\n${payment}`;
     const sent = await sendText(c.creds, c.to, msg);
     if (sent)
         await logMessage(c.conversationId, "OUT", msg, "TEXT", undefined, items?.length ? "STAFF" : undefined);

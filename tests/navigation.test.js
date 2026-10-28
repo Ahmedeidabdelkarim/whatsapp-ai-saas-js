@@ -6,13 +6,19 @@ import { wantsHuman } from "../src/lib/utils/intent";
 test("action ids round-trip", () => {
     assert.deepEqual(parseAction(ids.cat("c1")), { type: "cat", id: "c1" });
     assert.deepEqual(parseAction(ids.add("p9")), { type: "add", id: "p9" });
+    assert.deepEqual(parseAction(ids.cart), { type: "cart" });
+    assert.deepEqual(parseAction(ids.cartRemove), { type: "cart_remove" });
+    assert.deepEqual(parseAction(ids.removeCartItem("p9")), { type: "cart_delete", id: "p9" });
+    assert.deepEqual(parseAction(ids.removeCartItemAll("p9")), { type: "cart_delete_all", id: "p9" });
+    assert.deepEqual(parseAction(ids.cancelCartRemoval), { type: "cart_cancel_remove" });
+    assert.deepEqual(parseAction(ids.moreCartItems(9)), { type: "cart_more", offset: 9 });
     assert.deepEqual(parseAction(ids.more("c1", undefined, 8)), { type: "more", categoryId: "c1", brandId: undefined, offset: 8 });
     assert.deepEqual(parseAction(ids.more(undefined, "b1", 0)), { type: "more", categoryId: undefined, brandId: "b1", offset: 0 });
     for (const k of ["menu", "human", "checkout"])
         assert.deepEqual(parseAction(k), { type: k });
 });
 test("garbage ids are rejected", () => {
-    for (const id of ["", "x:1", "more:a:b:-3", "more:a:b:xyz", "cat:"])
+    for (const id of ["", "x:1", "more:a:b:-3", "more:a:b:xyz", "cat:", "cart:more:-1", "cart:more:nope", "cart:delete:"])
         assert.equal(parseAction(id), null, id);
 });
 const items = [{ name: "رجالي", id: 1 }, { name: "نسائي", id: 2 }, { name: "عبق", id: 3 }, { name: "العطور", id: 4 }, { name: "دهن عود", id: 5 }];

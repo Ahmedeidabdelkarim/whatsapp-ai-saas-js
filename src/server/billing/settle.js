@@ -28,7 +28,7 @@ export async function settleInvoice(invoiceId) {
         if (order.conversationId)
             await recordEvent({ conversationId: order.conversationId, type: "COMPLETED" });
         const creds = getWaCreds(order.store);
-        if (creds)
+        if (creds && order.store.isActive)
             await sendText(creds, order.customer.waId, `وصلنا دفعك ✅ شكراً لك!\nطلبك #${order.id.slice(-6).toUpperCase()} (${sar(order.totalHalalas)}) قيد التجهيز.`);
         return "paid";
     }

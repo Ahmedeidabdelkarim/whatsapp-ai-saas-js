@@ -12,8 +12,7 @@ export const createOrderTool = {
         const r = await createOrderWithInvoice(ctx.storeId, ctx.conversationId, ctx.customerId, String(i.address));
         if (!r.ok)
             return { error: r.error };
-        if (r.paymentUrl)
-            await sendPaymentLink({ creds: ctx.creds, to: ctx.customerWaId, conversationId: ctx.conversationId }, r.label, r.totalHalalas, r.paymentUrl);
+        await sendPaymentLink({ creds: ctx.creds, to: ctx.customerWaId, conversationId: ctx.conversationId }, r.label, r.totalHalalas, r.paymentUrl, r.items);
         return { order_id: r.label, total: sar(r.totalHalalas), status: "PENDING", payment_link_sent: !!r.paymentUrl };
     },
 };

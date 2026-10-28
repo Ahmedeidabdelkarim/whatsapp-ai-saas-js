@@ -21,6 +21,11 @@ npm test                    # unit tests (Node 22+)
 ```
 Demo logins: `owner@abaq.test / owner12345` · `admin@example.com / admin12345`
 
+### Admin store and plan management
+The `SUPER_ADMIN` role can see all stores, edit store names and slugs, suspend/reactivate stores, create and edit subscription plans, and view platform-wide store analytics. Store suspension blocks owner login, tenant dashboard APIs, local uploads, and new WhatsApp processing while retaining the store's data.
+
+After updating an existing database, run `npx prisma db push` to add the store status field.
+
 ## AI provider (free option)
 `AI_PROVIDER="openai"` + `OPENAI_API_KEY` (free Gemini key from https://aistudio.google.com/apikey) + `AI_MODEL="gemini-3.8-flash"`. Works with any OpenAI-compatible API (Groq, OpenRouter, Ollama: change `OPENAI_BASE_URL`).
 `AI_PROVIDER="anthropic"` uses Claude (paid credit). Google's free tier may use prompts to improve their products: testing only.

@@ -59,8 +59,21 @@ export async function drain() {
         active++;
         workers.push((async () => {
             try {
-                for (let j = await claim(); j; j = await claim())
-                    await run(j);
+                while (true) {
+                    let job;
+                    try {
+                        job = await claim();
+                    }
+                    catch (e) {
+                        const msg = e instanceof Error ? e.message : String(e);
+                        console.error("[jobs] claim failed (db unavailable):", msg);
+                        await new Promise((resolve) => setTimeout(resolve, 3000));
+                        continue;
+                    }
+                    if (!job)
+                        return;
+                    await run(job);
+                }
             }
             finally {
                 active--;

@@ -71,6 +71,7 @@ model Store {
   id                String   @id @default(cuid())
   name              String
   slug              String   @unique
+  isActive          Boolean  @default(true)
   currency          String   @default("SAR")
   // WhatsApp Cloud API connection
   waPhoneNumberId   String?  @unique
