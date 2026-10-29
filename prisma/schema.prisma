@@ -179,11 +179,21 @@ model Product {
   category     Category? @relation(fields: [categoryId], references: [id])
   brandId      String?
   brand        Brand?  @relation(fields: [brandId], references: [id])
+  embedding    ProductEmbedding?
   cartItems    CartItem[]
   orderItems   OrderItem[]
   inquiries    ProductInquiry[]
   createdAt    DateTime @default(now())
   @@index([storeId, active])
+}
+
+model ProductEmbedding {
+  productId String   @id
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  storeId   String
+  vector    Json
+  updatedAt DateTime @updatedAt
+  @@index([storeId])
 }
 
 model Customer {

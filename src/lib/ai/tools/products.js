@@ -4,6 +4,14 @@ import { sar } from "@/lib/utils/format";
 import { sendProductCard, sendText } from "@/lib/whatsapp/messages";
 import { logMessage } from "@/server/conversations";
 import { recordEvent } from "@/server/events";
+const priceHalalas = (value, label) => {
+    if (value == null)
+        return undefined;
+    const price = Number(value);
+    if (!Number.isFinite(price) || price < 0 || price > 21_474_836.47)
+        throw new Error(`قيمة ${label} غير صالحة`);
+    return Math.round(price * 100);
+};
 export const listCategoriesTool = {
     def: {
         name: "list_categories",
@@ -21,7 +29,7 @@ export const listCategoriesTool = {
 export const searchProductsTool = {
     def: {
         name: "search_products",
-        description: "ابحث في كتالوج المتجر. كل المعاملات اختيارية: query (كلمات من الاسم/الوصف/الماركة)، category_id، brand (اسم الماركة)، max_price/min_price بالريال. هذا المصدر الوحيد للمنتجات والأسعار.",
+        description: "ابحث بحثاً نصياً ودلالياً في كتالوج هذا المتجر عن المعنى المقصود حتى لو اختلفت كلمات العميل عن وصف المنتج. كل المعاملات اختيارية: query (عبارة العميل كما كتبها)، category_id، brand (اسم الماركة)، max_price/min_price بالريال. النتائج المتاحة فقط وتطبق عليها فلاتر السعر والقسم والماركة قبل عرضها. هذا المصدر الوحيد للمنتجات والأسعار.",
         input_schema: {
             type: "object",
             properties: {
@@ -32,14 +40,17 @@ export const searchProductsTool = {
         },
     },
     async run(ctx, input) {
+        const minHalalas = priceHalalas(input.min_price, "الحد الأدنى للسعر");
+        const maxHalalas = priceHalalas(input.max_price, "الحد الأعلى للسعر");
+        if (minHalalas != null && maxHalalas != null && minHalalas > maxHalalas)
+            return [];
         const items = await searchProducts(ctx.storeId, {
             q: String(input.query ?? ""), categoryId: input.category_id ? String(input.category_id) : undefined, brand: input.brand ? String(input.brand) : undefined,
-            minHalalas: input.min_price != null ? Math.round(Number(input.min_price) * 100) : undefined,
-            maxHalalas: input.max_price != null ? Math.round(Number(input.max_price) * 100) : undefined,
+            minHalalas, maxHalalas,
         });
         if (items.length)
             await prisma.productInquiry.createMany({ data: items.slice(0, 3).map((p) => ({ productId: p.id, conversationId: ctx.conversationId })) });
-        return items.map((p) => ({ id: p.id, name: p.name, price: sar(p.priceHalalas), in_stock: p.stock > 0, stock: p.stock, category: p.category?.name, brand: p.brand?.name }));
+        return items.map((p) => ({ id: p.id, name: p.name, description: p.description, price: sar(p.priceHalalas), in_stock: p.stock > 0, stock: p.stock, category: p.category?.name, brand: p.brand?.name }));
     },
 };
 export const showProductCardTool = {

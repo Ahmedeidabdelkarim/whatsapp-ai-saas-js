@@ -6,13 +6,13 @@ import { getStore } from "@/lib/tenant/get-tenant";
 import { createProduct, deleteProduct, findOrCreateBrand, updateProduct, updateStock } from ".";
 export async function addProductAction(fd) {
     const store = await getStore();
-    const p = z.object({ name: z.string().min(2), price: z.coerce.number().positive(), stock: z.coerce.number().int().min(0), categoryId: z.string().optional(), brandName: z.string().optional(), imageUrl: z.string().url().optional().or(z.literal("")) }).parse(Object.fromEntries(fd));
+    const p = z.object({ name: z.string().min(2), description: z.string().max(5000).optional(), price: z.coerce.number().positive(), stock: z.coerce.number().int().min(0), categoryId: z.string().optional(), brandName: z.string().optional(), imageUrl: z.string().url().optional().or(z.literal("")) }).parse(Object.fromEntries(fd));
     let brandId;
     if (p.brandName?.trim()) {
         const b = (await prisma.brand.findFirst({ where: { storeId: store.id, name: p.brandName.trim() } })) ?? (await prisma.brand.create({ data: { storeId: store.id, name: p.brandName.trim() } }));
         brandId = b.id;
     }
-    await createProduct(store.id, { name: p.name, priceHalalas: Math.round(p.price * 100), stock: p.stock, categoryId: p.categoryId || undefined, brandId, imageUrl: p.imageUrl || undefined });
+    await createProduct(store.id, { name: p.name, description: p.description?.trim() || null, priceHalalas: Math.round(p.price * 100), stock: p.stock, categoryId: p.categoryId || undefined, brandId, imageUrl: p.imageUrl || undefined });
     revalidatePath("/dashboard/products");
 }
 export async function setStockAction(fd) {
@@ -35,7 +35,7 @@ export async function addCategoryAction(fd) {
 }
 export async function updateProductAction(fd) {
     const store = await getStore();
-    const p = z.object({ id: z.string(), name: z.string().min(2), description: z.string().optional(), price: z.coerce.number().positive(), stock: z.coerce.number().int().min(0), categoryId: z.string().optional(), brandName: z.string().optional(), imageUrl: z.string().url().optional().or(z.literal("")) }).parse(Object.fromEntries(fd));
+    const p = z.object({ id: z.string(), name: z.string().min(2), description: z.string().max(5000).optional(), price: z.coerce.number().positive(), stock: z.coerce.number().int().min(0), categoryId: z.string().optional(), brandName: z.string().optional(), imageUrl: z.string().url().optional().or(z.literal("")) }).parse(Object.fromEntries(fd));
     const brand = p.brandName?.trim() ? await findOrCreateBrand(store.id, p.brandName) : null;
     await updateProduct(store.id, p.id, {
         name: p.name, description: p.description?.trim() || null, priceHalalas: Math.round(p.price * 100), stock: p.stock, active: fd.get("active") === "on",

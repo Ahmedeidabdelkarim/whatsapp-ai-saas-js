@@ -31,6 +31,8 @@ export default async function Page() {
         tplStatus = status;
     }
     catch (e) {
+        if (e && typeof e === "object" && typeof e.digest === "string" && (e.digest.startsWith("NEXT_") || e.digest === "DYNAMIC_SERVER_USAGE"))
+            throw e;
         dbError = e instanceof Error ? e.message : String(e);
         console.error("[dashboard/whatsapp] failed to load WhatsApp page:", dbError);
     }

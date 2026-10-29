@@ -11,7 +11,7 @@ export async function GET() {
         return NextResponse.json({ error: "store_disabled" }, { status: 403 });
     return NextResponse.json(await listProducts(s.storeId));
 }
-const schema = z.object({ name: z.string().min(2), priceHalalas: z.number().int().positive(), stock: z.number().int().min(0), categoryId: z.string().optional(), brandId: z.string().optional(), imageUrl: z.string().url().optional() });
+const schema = z.object({ name: z.string().min(2), description: z.string().max(5000).optional(), priceHalalas: z.number().int().positive(), stock: z.number().int().min(0), categoryId: z.string().optional(), brandId: z.string().optional(), imageUrl: z.string().url().optional() });
 export async function POST(req) {
     const s = await getSession();
     if (!s?.storeId)

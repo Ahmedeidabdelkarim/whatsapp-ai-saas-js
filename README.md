@@ -30,6 +30,13 @@ After updating an existing database, run `npx prisma db push` to add the store s
 `AI_PROVIDER="openai"` + `OPENAI_API_KEY` (free Gemini key from https://aistudio.google.com/apikey) + `AI_MODEL="gemini-3.8-flash"`. Works with any OpenAI-compatible API (Groq, OpenRouter, Ollama: change `OPENAI_BASE_URL`).
 `AI_PROVIDER="anthropic"` uses Claude (paid credit). Google's free tier may use prompts to improve their products: testing only.
 
+### Hybrid product search (RAG)
+Product recommendations use tenant-scoped database filters (active/in-stock products, category, brand, and exact price bounds) combined with text matching and cosine similarity over product embeddings. Embeddings include the product name, description, category, and brand; price and stock always come from the live database.
+
+The semantic layer uses an OpenAI-compatible embeddings endpoint. Set `AI_EMBEDDING_API_KEY` (or reuse `OPENAI_API_KEY`), optionally `AI_EMBEDDING_BASE_URL` (defaults to `OPENAI_BASE_URL`), and optionally `AI_EMBEDDING_MODEL` (defaults to `gemini-embedding-001` for Google's endpoint or `text-embedding-3-small` otherwise). The endpoint must support `POST /embeddings`. When semantic credentials are absent or the endpoint is unavailable, the system logs the problem and uses text search instead.
+
+After adding the `ProductEmbedding` table, apply the schema with `npx prisma db push`. New and edited products are indexed automatically; old catalog entries are backfilled in batches of up to 40 when semantic searches run. The vector is stored separately so product API responses never include it.
+
 ## Customer journey (matches the product spec)
 1. First message: welcome (greeting + image/video/voice/PDF) + main menu (sections + "التحدث مع موظف").
 2. Menus need no AI: section -> sub-section -> brand -> product list -> product card with [أضف للسلة] [متابعة التسوق] [التحدث مع موظف]. A short message that is just a section/brand name opens that menu.
