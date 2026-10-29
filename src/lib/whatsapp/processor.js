@@ -155,26 +155,30 @@ async function hearVoice(creds, audio) {
 }
 async function sendWelcome(store, c) {
     const log = (b, t) => logMessage(c.conversationId, "OUT", b, t);
-    await sendText(c.creds, c.to, store.greeting);
+    await requireWelcomeSend(sendText(c.creds, c.to, store.greeting), "greeting");
     await logMessage(c.conversationId, "OUT", store.greeting);
     const assets = await prisma.welcomeAsset.findMany({ where: { storeId: store.id, enabled: true } });
     const by = Object.fromEntries(assets.map((a) => [a.kind, a.url]));
     if (by.IMAGE) {
-        await sendImage(c.creds, c.to, by.IMAGE);
+        await requireWelcomeSend(sendImage(c.creds, c.to, by.IMAGE), "image");
         await log("[صورة تعريفية]", "IMAGE");
     }
     if (by.VIDEO) {
-        await sendVideo(c.creds, c.to, by.VIDEO, "فيديو تعريفي");
+        await requireWelcomeSend(sendVideo(c.creds, c.to, by.VIDEO, "فيديو تعريفي"), "video");
         await log("[فيديو تعريفي]", "VIDEO");
     }
     if (by.VOICE) {
-        await sendVoice(c.creds, c.to, by.VOICE);
+        await requireWelcomeSend(sendVoice(c.creds, c.to, by.VOICE), "voice note");
         await log("[رسالة صوتية]", "AUDIO");
     }
     if (by.GUIDE) {
-        await sendDocument(c.creds, c.to, by.GUIDE, "دليل-الشراء.pdf");
+        await requireWelcomeSend(sendDocument(c.creds, c.to, by.GUIDE, "دليل-الشراء.pdf"), "guide");
         await log("[دليل الشراء]", "DOCUMENT");
     }
     await sendMainMenu(c);
     await prisma.conversation.update({ where: { id: c.conversationId }, data: { welcomed: true } }); // last, so a crash mid-way re-sends rather than skips
+}
+async function requireWelcomeSend(result, asset) {
+    if (!await result)
+        throw new Error(`WhatsApp rejected the welcome ${asset}; verify the media URL is publicly accessible over HTTPS and the S3 object allows s3:GetObject.`);
 }

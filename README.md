@@ -85,7 +85,7 @@ The worker polls every 3s inside the Next server. On serverless set `JOB_WORKER=
 - `APP_URL` must be public (ngrok/your domain) or Moyasar cannot call back.
 
 ## Uploads
-Welcome video / voice note / PDF are uploaded in the dashboard (type, size and file signature are checked). `STORAGE_DRIVER=local` stores in `UPLOAD_DIR` and serves via `/api/files/...` (needs public `APP_URL`); `s3` uses any S3-compatible bucket.
+Welcome video / voice note / PDF and product images are uploaded through the authenticated `/api/uploads` endpoint (type, size, file signature, and store ownership are checked). The WhatsApp dashboard previews assets through an authenticated endpoint, so dashboard viewing does not require public bucket access. `STORAGE_DRIVER=local` stores in `UPLOAD_DIR` and serves via `/api/files/...` (needs public `APP_URL`); `s3` uses an AWS S3 bucket or compatible storage. For AWS, use the bucket's exact region, leave `S3_ENDPOINT` blank, configure `S3_PUBLIC_URL` as `https://<bucket>.s3.<region>.amazonaws.com`, and grant the app only `s3:PutObject`, `s3:GetObject`, and `s3:DeleteObject` on `arn:aws:s3:::<bucket>/uploads/*`. WhatsApp must be able to fetch media from its URL; do not enable bucket listing. For production on AWS, prefer an IAM role over long-lived access keys.
 Voice notes show as real voice messages only when the file is OGG/Opus.
 
 ## Follow-up campaign template

@@ -33,15 +33,15 @@ SMTP_USER=""
 SMTP_PASS=""
 EMAIL_FROM=""
 
-# File uploads for the welcome package: "local" (default) or "s3" (AWS S3 / Cloudflare R2 / Supabase)
+# File uploads: "local" (default) or "s3" (AWS S3 / Cloudflare R2 / Supabase)
 STORAGE_DRIVER="local"
 UPLOAD_DIR="./uploads"
 S3_BUCKET=""
-S3_REGION="auto"
-S3_ENDPOINT=""            # R2/Supabase only, e.g. https://<account>.r2.cloudflarestorage.com
+S3_REGION="auto"          # AWS: exact bucket region (e.g. us-east-1); R2/others: provider value
+S3_ENDPOINT=""            # Leave blank for AWS S3; set only for R2/Supabase-compatible storage
 S3_ACCESS_KEY_ID=""
 S3_SECRET_ACCESS_KEY=""
-S3_PUBLIC_URL=""          # public base URL of the bucket, e.g. https://pub-xxxx.r2.dev
+S3_PUBLIC_URL=""          # AWS: https://<bucket>.s3.<region>.amazonaws.com
 
 # Queue worker: polls inside the Next server. Set to "off" on serverless and call /api/jobs/run from a cron instead.
 JOB_WORKER="on"

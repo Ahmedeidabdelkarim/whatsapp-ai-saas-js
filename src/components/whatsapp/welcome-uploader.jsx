@@ -8,8 +8,7 @@ const ITEMS = [
     { kind: "VOICE", label: "رسالة صوتية", hint: "OGG (Opus) يظهر كرسالة صوتية حقيقية، أو MP3/M4A حتى 16MB", accept: ".ogg,.mp3,.m4a,.aac,.amr,audio/*" },
     { kind: "GUIDE", label: "دليل الشراء", hint: "PDF حتى 20MB", accept: "application/pdf" },
 ];
-// The stored URL is public (for WhatsApp). For previewing in the dashboard use the same-origin path instead.
-const preview = (u) => u.replace(/^https?:\/\/[^/]+(?=\/api\/files\/)/, "");
+const preview = (kind) => `/api/uploads/preview?kind=${kind}`;
 function Row({ item, url }) {
     const router = useRouter();
     const [busy, setBusy] = useState(false);
@@ -20,17 +19,38 @@ function Row({ item, url }) {
         const fd = new FormData();
         fd.set("kind", item.kind);
         fd.set("file", file);
-        const res = await fetch("/api/uploads", { method: "POST", body: fd });
-        if (!res.ok)
-            setError((await res.json().catch(() => ({}))).error ?? "فشل الرفع");
-        setBusy(false);
-        router.refresh();
+        try {
+            const res = await fetch("/api/uploads", { method: "POST", body: fd });
+            if (!res.ok) {
+                setError((await res.json().catch(() => ({}))).error ?? "فشل الرفع");
+                return;
+            }
+            router.refresh();
+        }
+        catch (e) {
+            setError(e instanceof Error ? e.message : "تعذر الاتصال بالخادم");
+        }
+        finally {
+            setBusy(false);
+        }
     }
     async function remove() {
         setBusy(true);
-        await fetch(`/api/uploads?kind=${item.kind}`, { method: "DELETE" });
-        setBusy(false);
-        router.refresh();
+        setError("");
+        try {
+            const res = await fetch(`/api/uploads?kind=${item.kind}`, { method: "DELETE" });
+            if (!res.ok) {
+                setError((await res.json().catch(() => ({}))).error ?? "فشل حذف الملف");
+                return;
+            }
+            router.refresh();
+        }
+        catch (e) {
+            setError(e instanceof Error ? e.message : "تعذر الاتصال بالخادم");
+        }
+        finally {
+            setBusy(false);
+        }
     }
     return (<div className="rounded-xl border border-line p-3">
       <div className="flex items-center justify-between gap-3">
@@ -44,10 +64,10 @@ function Row({ item, url }) {
           {url && <Button type="button" variant="danger" onClick={remove} disabled={busy}>حذف</Button>}
         </div>
       </div>
-      {url && item.kind === "IMAGE" && <img src={preview(url)} alt="" className="mt-3 max-h-40 rounded-lg"/>}
-      {url && item.kind === "VIDEO" && <video src={preview(url)} controls className="mt-3 max-h-44 rounded-lg"/>}
-      {url && item.kind === "VOICE" && <audio src={preview(url)} controls className="mt-3 w-full"/>}
-      {url && item.kind === "GUIDE" && <a href={preview(url)} target="_blank" className="mt-3 inline-block text-sm text-wa">فتح الدليل ↗</a>}
+      {url && item.kind === "IMAGE" && <img src={preview(item.kind)} alt={item.label} className="mt-3 max-h-40 rounded-lg"/>}
+      {url && item.kind === "VIDEO" && <video src={preview(item.kind)} controls className="mt-3 max-h-44 rounded-lg"/>}
+      {url && item.kind === "VOICE" && <audio src={preview(item.kind)} controls className="mt-3 w-full"/>}
+      {url && item.kind === "GUIDE" && <a href={preview(item.kind)} target="_blank" rel="noreferrer" className="mt-3 inline-block text-sm text-wa">فتح الدليل ↗</a>}
       {error && <p className="mt-2 text-sm text-red-300">{error}</p>}
     </div>);
 }
