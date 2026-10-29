@@ -8,7 +8,7 @@ import { createSession, destroySession, hashPassword, verifyPassword } from "@/l
 import { clientIp } from "@/lib/utils/ip";
 import { rateLimit } from "@/lib/utils/rate-limit";
 import { hashToken } from "@/lib/utils/secret";
-import { sendEmail, otpEmail } from "@/lib/email";
+import { getSmtpConfig, sendEmail, otpEmail } from "@/lib/email";
 import { getResetSession, RESET_COOKIE } from "@/lib/auth/reset-session";
 import { OTP_TTL_MS, RESET_SESSION_MS, MAX_ATTEMPTS, checkOtp, generateOtp, hashOtp, normalizeOtpInput } from "@/lib/auth/otp";
 const TOO_MANY = { error: "محاولات كثيرة، حاول بعد قليل" };
@@ -83,6 +83,16 @@ export async function forgotPasswordAction(_, fd) {
     const blocked = await otpAllowed(email);
     if (blocked)
         return blocked;
+    if (process.env.NODE_ENV === "production") {
+        try {
+            if (!getSmtpConfig())
+                return { error: "إرسال البريد غير مهيأ. أضف إعدادات SMTP الخاصة ببريد الاستضافة ثم حاول مرة أخرى." };
+        }
+        catch (e) {
+            console.error("[email] invalid SMTP configuration:", e instanceof Error ? e.message : String(e));
+            return { error: "إعدادات البريد غير صحيحة. راجع إعدادات SMTP الخاصة بالاستضافة." };
+        }
+    }
     const user = await prisma.user.findUnique({ where: { email } });
     if (user)
         await issueOtp(user);

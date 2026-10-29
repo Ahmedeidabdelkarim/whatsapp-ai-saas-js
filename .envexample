@@ -24,9 +24,14 @@ AI_REASONING_EFFORT="low"             # faster + cheaper replies; leave empty fo
 MOYASAR_SECRET_KEY=""
 PAYMENTS_WEBHOOK_SECRET="change-me"   # random string, appended to the callback URL
 
-# Password reset email (https://resend.com). Empty = the link is printed in the terminal.
-RESEND_API_KEY=""
-EMAIL_FROM="Abaq <onboarding@resend.dev>"
+# Password reset email via Gmail SMTP. Create an App Password after enabling 2-Step Verification:
+# https://myaccount.google.com/apppasswords (do not use your normal Gmail password).
+# Gmail defaults to smtp.gmail.com:465 when SMTP_HOST/SMTP_PORT are omitted.
+SMTP_HOST=""
+SMTP_PORT=""
+SMTP_USER=""
+SMTP_PASS=""
+EMAIL_FROM=""
 
 # File uploads for the welcome package: "local" (default) or "s3" (AWS S3 / Cloudflare R2 / Supabase)
 STORAGE_DRIVER="local"

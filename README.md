@@ -56,7 +56,9 @@ Dashboard → واتساب → "اختبار الذكاء الاصطناعي" ru
 - The code is random, valid 10 min, 5 wrong tries max (counted atomically before comparing), one active code per user; only an HMAC of it is stored.
 - A correct code becomes a 15-minute reset session in an httpOnly cookie (only its hash is stored): no secret in any URL.
 - Same answers whether or not the email exists; limits: 1 code/min and 5/h per email, 10/15 min per IP.
-- Arabic-Indic digits (١٢٣٤٥٦) are accepted. Without `RESEND_API_KEY` the code is printed in the terminal (`[email:dev]`).
+- Gmail works directly over SMTP without Resend: enable 2-Step Verification, create a Google App Password at https://myaccount.google.com/apppasswords, then set `SMTP_USER` to the Gmail address and `SMTP_PASS` to the App Password. When `SMTP_HOST`/`SMTP_PORT` are omitted, Gmail defaults to `smtp.gmail.com:465` (SSL). Set `EMAIL_FROM` to the same Gmail address (optionally with a display name). Never use your normal Gmail password.
+- Other SMTP mailboxes from hosting providers/cPanel are supported through `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, and `EMAIL_FROM`; port 465 uses SSL and port 587 uses STARTTLS.
+- SMTP is the only production mail transport; the app does not fall back to Resend. If SMTP is missing in production, the reset flow reports that mail is not configured. In local development without SMTP, the code is printed in the terminal (`[email:dev]`). Arabic-Indic digits (١٢٣٤٥٦) are accepted.
 - A finished reset deletes all pending codes. Existing login sessions stay valid until they expire (7 days).
 
 ## Real-time dashboard
