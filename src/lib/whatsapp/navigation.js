@@ -9,6 +9,7 @@ import { recordEvent } from "@/server/events";
 import { sendButtons, sendList, sendText } from "./messages";
 import { ids } from "./actions";
 import { pickKeywordMatch } from "./keywords";
+import { normalizeArabic } from "@/lib/utils/text";
 import { isRemoveAll, parseQuantity } from "@/lib/utils/quantity";
 const PAGE = 8; // 8 rows + "more" + "talk to agent" = WhatsApp's 10-row limit
 const HUMAN_SECTION = { title: "مساعدة", rows: [{ id: ids.human, title: "التحدث مع موظف" }] };
@@ -125,19 +126,30 @@ export async function handleAction(c, a) {
         default: return { handled: false };
     }
 }
-/** A short message that is just a section/brand name ("رجالي", "عبق") opens that menu directly. */
+/** Short messages matching a section, brand, or product open it directly without an AI call. */
 export async function tryKeywordNav(c, text) {
     const [cats, brands] = await Promise.all([
         prisma.category.findMany({ where: { storeId: c.storeId }, select: { id: true, name: true } }),
         prisma.brand.findMany({ where: { storeId: c.storeId }, select: { id: true, name: true } }),
     ]);
     const hit = pickKeywordMatch(text, [...cats.map((x) => ({ ...x, kind: "cat" })), ...brands.map((x) => ({ ...x, kind: "brand" }))]);
-    if (!hit)
-        return false;
-    if (hit.kind === "cat")
+    if (hit?.kind === "cat")
         await showCategory(c, hit.id);
-    else
+    else if (hit?.kind === "brand")
         await showProducts(c, undefined, hit.id, 0);
+    if (hit)
+        return true;
+    const words = normalizeArabic(text).split(/\s+/).filter(Boolean);
+    if (words.length === 0 || words.length > 4)
+        return false;
+    const products = await prisma.product.findMany({
+        where: { storeId: c.storeId, active: true },
+        select: { id: true, name: true },
+    });
+    const product = pickKeywordMatch(text, products);
+    if (!product)
+        return false;
+    await showProduct(c, product.id);
     return true;
 }
 const clearAwaiting = (c) => prisma.conversation.update({ where: { id: c.conversationId }, data: { awaiting: null } });

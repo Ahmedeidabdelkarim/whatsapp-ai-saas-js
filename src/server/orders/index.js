@@ -15,7 +15,7 @@ export async function checkoutCart(storeId, conversationId, customerId, address)
         const total = cart.items.reduce((s, i) => s + i.quantity * i.product.priceHalalas, 0);
         const order = await tx.order.create({
             data: { storeId, customerId, conversationId, totalHalalas: total, address,
-                items: { create: cart.items.map((i) => ({ productId: i.productId, quantity: i.quantity, unitPriceHalalas: i.product.priceHalalas })) } },
+                items: { create: cart.items.map((i) => ({ productId: i.productId, productName: i.product.name, quantity: i.quantity, unitPriceHalalas: i.product.priceHalalas })) } },
             include: { items: { include: { product: true } } },
         });
         await tx.cartItem.deleteMany({ where: { cartId: cart.id } });

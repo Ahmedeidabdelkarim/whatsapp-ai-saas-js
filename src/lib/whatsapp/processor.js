@@ -18,7 +18,7 @@ import { handleAction, handleAwaiting, sendMainMenu, startCheckout, tryKeywordNa
 const FALLBACK = "عذراً، صار عندي خلل بسيط. ممكن تعيد رسالتك؟ أو اضغط الزر وأحوّلك لأحد الزملاء.";
 /**
  * Runs inside the queue worker. Order of decisions:
- * human in control -> just store | wants a human -> handoff | first contact -> welcome | menu taps | section keyword | AI.
+ * human in control -> just store | wants a human -> handoff | first contact -> welcome | menu taps | section/brand/product name | AI.
  * Menus never need the AI, so browsing works even when AI is off, rate-limited or out of budget.
  * Throwing = the job is retried with backoff.
  */
@@ -90,7 +90,7 @@ export async function processWaMessage(p) {
             await sendMainMenu(nav);
         return;
     }
-    // 6) Menu taps, typed checkout, then short section/brand names. No AI needed.
+    // 6) Menu taps, typed checkout, then short section/brand/product names. No AI needed.
     if (action) {
         const r = await handleAction(nav, action);
         if (r.handled)

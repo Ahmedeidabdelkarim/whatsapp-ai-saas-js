@@ -14,18 +14,33 @@ export async function GET(req) {
     if (!(await isStoreActive(session.storeId)))
         return NextResponse.json({ error: "store_disabled" }, { status: 403 });
 
-    const kind = new URL(req.url).searchParams.get("kind") ?? "";
+    const { searchParams } = new URL(req.url);
+    const productId = searchParams.get("productId");
+    const kind = searchParams.get("kind") ?? "";
     if (!isKind(kind))
         return NextResponse.json({ error: "نوع الملف غير صالح" }, { status: 400 });
-    const asset = await prisma.welcomeAsset.findUnique({
-        where: { storeId_kind: { storeId: session.storeId, kind } },
-        select: { url: true },
-    });
-    if (!asset)
+    let url;
+    if (productId) {
+        if (kind !== "IMAGE")
+            return NextResponse.json({ error: "معاينة المنتج متاحة للصور فقط" }, { status: 400 });
+        const product = await prisma.product.findFirst({
+            where: { id: productId, storeId: session.storeId },
+            select: { imageUrl: true },
+        });
+        url = product?.imageUrl;
+    }
+    else {
+        const asset = await prisma.welcomeAsset.findUnique({
+            where: { storeId_kind: { storeId: session.storeId, kind } },
+            select: { url: true },
+        });
+        url = asset?.url;
+    }
+    if (!url)
         return NextResponse.json({ error: "الملف غير موجود" }, { status: 404 });
 
     try {
-        const file = await readFile(session.storeId, asset.url);
+        const file = await readFile(session.storeId, url);
         return new Response(new Uint8Array(file.body), {
             headers: {
                 "Content-Type": file.contentType,

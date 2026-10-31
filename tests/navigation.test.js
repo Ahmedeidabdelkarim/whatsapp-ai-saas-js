@@ -28,8 +28,14 @@ test("keyword picks a category or brand from a short message", () => {
     assert.equal(pickKeywordMatch("ابغى نسائي", items)?.id, 2);
     assert.equal(pickKeywordMatch("دهن عود", items)?.id, 5);
 });
+test("short product-name requests can be matched without an AI call", () => {
+    const products = [{ name: "عطر ملكي", id: "p1" }, { name: "دهن عود", id: "p2" }];
+    assert.equal(pickKeywordMatch("عطر ملكي", products)?.id, "p1");
+    assert.equal(pickKeywordMatch("أبغى دهن العود", products)?.id, "p2");
+});
 test("long questions and non-matches go to the AI", () => {
     assert.equal(pickKeywordMatch("كم سعر العود الملكي وهل متوفر عندكم اليوم", items), null);
+    assert.equal(pickKeywordMatch("كم سعر عطر ملكي وهل متوفر", [{ name: "عطر ملكي", id: "p1" }]), null);
     assert.equal(pickKeywordMatch("شكراً", items), null);
     assert.equal(pickKeywordMatch("", items), null);
 });

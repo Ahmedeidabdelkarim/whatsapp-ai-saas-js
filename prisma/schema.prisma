@@ -295,8 +295,9 @@ model OrderItem {
   id                 String @id @default(cuid())
   orderId            String
   order              Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId          String
-  product            Product @relation(fields: [productId], references: [id])
+  productId          String?
+  product            Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productName        String?
   quantity           Int
   unitPriceHalalas   Int
 }

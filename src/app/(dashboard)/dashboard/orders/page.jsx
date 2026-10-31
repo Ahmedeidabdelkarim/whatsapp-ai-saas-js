@@ -26,10 +26,10 @@ export default async function Page() {
         <div className="[&_td]:px-5 [&_th]:px-5 [&_th]:pt-4 [&_tbody_tr]:transition-colors [&_tbody_tr:hover]:bg-white/[0.03]">
         <DataTable head={["الطلب", "التاريخ", "العميل", "المنتجات", "الإجمالي", "الحالة"]}>
           {orders.map((o) => (<tr key={o.id}>
-              <td dir="ltr" className="whitespace-nowrap text-start"><span className="rounded-md bg-white/5 px-2 py-1 font-mono text-xs text-mute">#{o.id.slice(-6).toUpperCase()}</span></td>
+              <td dir="ltr" className="whitespace-nowrap text-end"><span className="rounded-md bg-white/5 px-2 py-1 font-mono text-xs text-mute">#{o.id.slice(-6).toUpperCase()}</span></td>
               <td className="whitespace-nowrap text-mute"><span>{o.createdAt.toLocaleDateString("ar-SA")}</span><span className="mt-1 block text-xs text-mute/70">{o.createdAt.toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}</span></td>
               <td className="min-w-36 font-medium">{o.customer.name ?? o.customer.waId}</td>
-              <td className="max-w-64 text-mute">{o.items.map((i) => `${i.product.name} ×${i.quantity}`).join("، ")}</td>
+              <td className="max-w-64 text-mute">{o.items.map((i) => `${i.product?.name ?? i.productName ?? "منتج محذوف"} ×${i.quantity}`).join("، ")}</td>
               <td className="whitespace-nowrap font-semibold">{sar(o.totalHalalas)}</td>
               <td>
                 <form action={orderStatusAction} className="flex min-w-56 items-center gap-2"><input type="hidden" name="id" value={o.id}/>

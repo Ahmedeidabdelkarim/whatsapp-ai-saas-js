@@ -55,7 +55,7 @@ export async function createPaymentLinkForOrder(storeId, orderId) {
     }
 }
 export async function sendPaymentLink(c, label, totalHalalas, url, items) {
-    const summary = items?.length ? `\nالمنتجات:\n${items.map((item) => `• ${item.product.name} × ${item.quantity} — ${sar(item.quantity * item.unitPriceHalalas)}`).join("\n")}` : "";
+    const summary = items?.length ? `\nالمنتجات:\n${items.map((item) => `• ${item.product?.name ?? item.productName ?? "منتج محذوف"} × ${item.quantity} — ${sar(item.quantity * item.unitPriceHalalas)}`).join("\n")}` : "";
     const payment = url ? `رابط الدفع:\n${url}` : "فريق المتجر بيتواصل معك لإتمام الدفع.";
     const msg = `تفاصيل طلبك #${label}:${summary}\nالإجمالي: ${sar(totalHalalas)}\n${payment}`;
     const sent = await sendText(c.creds, c.to, msg);

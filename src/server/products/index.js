@@ -98,7 +98,19 @@ export async function createProduct(storeId, d) {
     return product;
 }
 export const updateStock = (storeId, id, stock) => prisma.product.updateMany({ where: { id, storeId }, data: { stock } });
-export const deleteProduct = (storeId, id) => prisma.product.deleteMany({ where: { id, storeId } });
+export async function deleteProduct(storeId, id) {
+    return prisma.$transaction(async (tx) => {
+        const product = await tx.product.findFirst({ where: { id, storeId }, select: { id: true, name: true } });
+        if (!product)
+            return { count: 0 };
+        await tx.orderItem.updateMany({
+            where: { productId: product.id },
+            data: { productName: product.name },
+        });
+        await tx.cartItem.deleteMany({ where: { productId: product.id } });
+        return tx.product.deleteMany({ where: { id: product.id, storeId } });
+    });
+}
 export const listCategories = (storeId) => prisma.category.findMany({ where: { storeId }, include: { parent: true, _count: { select: { products: true } } }, orderBy: { name: "asc" } });
 export const topLevelCategories = (storeId) => prisma.category.findMany({ where: { storeId, parentId: null } });
 export const getProduct = (storeId, id) => prisma.product.findFirst({ where: { id, storeId }, include: { category: true, brand: true } });

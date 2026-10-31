@@ -37,6 +37,8 @@ The semantic layer uses an OpenAI-compatible embeddings endpoint. Set `AI_EMBEDD
 
 After adding the `ProductEmbedding` table, apply the schema with `npx prisma db push`. New and edited products are indexed automatically; old catalog entries are backfilled in batches of up to 40 when semantic searches run. The vector is stored separately so product API responses never include it.
 
+Product deletion is permanent. Order items keep a product-name and price snapshot, so deleting a catalog product does not remove or break order history. After updating an existing database, apply the `OrderItem` schema change with `npx prisma db push`.
+
 ## Customer journey (matches the product spec)
 1. First message: welcome (greeting + image/video/voice/PDF) + main menu (sections + "التحدث مع موظف").
 2. Menus need no AI: section -> sub-section -> brand -> product list -> product card with [أضف للسلة] [متابعة التسوق] [التحدث مع موظف]. A short message that is just a section/brand name opens that menu.
